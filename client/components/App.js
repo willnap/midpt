@@ -3,7 +3,11 @@ import Maps from '../components/Maps';
 import Form from '../components/Form';
 
 function getInitialState() {
-  return { placeholder: 'Enter an address...' };
+  return {
+    placeholder: 'Enter an address...',
+    radioName: 'p30min',
+    radioVal: 30*60
+  };
 }
 
 class App extends Component {
@@ -18,15 +22,16 @@ class App extends Component {
     this.setState({
       [e.target.id]: e.target.value
     });
-    console.log(e.target.id + ' change: ' + this.state[e.target.id]);
   }
   onClick(e) {
-    console.log('CLICK:', e.target.value);
-    console.log('Radio val:', this.state.radioVal);
-    console.log(this.state.loca + ' ' + this.state.locb);
+    console.log(this.state.loca + ' 📍 ' + this.state.locb);
+    console.log('Leaving in +' + this.state.radioVal + ' seconds');
+    let departureTime = new Date(Date.now() + (this.state.radioVal * 1000));
+    departureTime = departureTime.toISOString();
+    console.log('(' + departureTime + ')');
     const data = {
       points: [this.state.loca, this.state.locb],
-      departureTime: 'x'
+      departureTime: departureTime
     };
     fetch('http://localhost:3000/buildroute', {
       method: 'POST',
@@ -40,7 +45,7 @@ class App extends Component {
         return response.json();
       })
       .then(data => {
-        console.log(data);
+        console.log('data', data);
         this.setState({
           result: {
             point1: data.points[0],
@@ -55,7 +60,13 @@ class App extends Component {
       });
   }
   onRadioChange(e) {
-    this.setState({ radioVal: [e.target.value] });
+    this.setState({
+      radioVal: [e.target.value],
+      radioName: [e.target.id]
+    });
+  }
+  hasUpdatedMap() {
+    this.setState({ shouldUpdateMap: false });
   }
   render() {
     return (
@@ -64,10 +75,11 @@ class App extends Component {
         <Form
           onChange={this.onChange}
           onClick={this.onClick}
+          radioVal={this.state.radioName}
           onRadioChange={this.onRadioChange}
           placeholder={this.state.placeholder}
         />
-        <Maps result={this.state.result} />
+      <Maps result={this.state.result} />
       </div>
     );
   }

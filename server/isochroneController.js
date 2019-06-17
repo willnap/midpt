@@ -10,7 +10,7 @@ isochroneController.getCoords = (req, res, next) => {
   //retrieve location data from req.body and parse
   res.locals.addresses = [];
   res.locals.points = [];
-  const dateObj = new Date();
+  const dateObj = new Date(req.body['departureTime']);
   res.locals.departureTimeISO = dateObj.toISOString(); // for time travel api
   res.locals.departureTimeUNIX = Math.round(dateObj.valueOf() / 1000);
   // console.log('reqbody', req.body);
@@ -91,7 +91,7 @@ isochroneController.generateIsochrones = (req, res, next) => {
         timeToTry / 60
       );
       friendIsochrones = [];
-      for (let i = 0; i < 2; i++) {
+      for (let i = 0; i < 2; i += 1) {
         friendIsochrones.push(
           await new Promise((resolve, reject) => {
             isochrone.compute({
@@ -126,7 +126,7 @@ isochroneController.generateIsochrones = (req, res, next) => {
     res.locals.isochrones = [];
     for (let i = 0; i < 2; i += 1) {
       res.locals.isochrones.push(
-        friendIsochrones[i].geometry.coordinates[i].map(point => {
+        friendIsochrones[i].geometry.coordinates[0].map(point => {
           return { lat: point[0], lng: point[1] };
         })
       );

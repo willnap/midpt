@@ -13,6 +13,8 @@
 
 # misc
 /client/components/frontendConfig.js
+/client/config.js
+/config.js
 .env
 .DS_Store
 .env

@@ -4,6 +4,7 @@ const centroidController = {
     // rounded to 7 decimal places.
     // formula: (p1 + ... + pn) / numPoints
     const latLngArr = res.locals.isoIntersectionPoints;
+    console.log('getCentroid.latLngArr:', latLngArr);
     if (latLngArr.length === 0) {
       return 'error ! no intersection found :/ fairTime is probably calculated wrong';
     }

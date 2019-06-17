@@ -1,6 +1,7 @@
 import React, { Component } from 'react';
+import config from '../config';
 import Map from '../components/Map';
-import config from './frontendConfig';
+import VennMap from '../components/VennMap';
 
 const GoogleMapsAPI = new Promise((res, err) => {
   const script = document.createElement('script');
@@ -15,6 +16,12 @@ const GoogleMapsAPI = new Promise((res, err) => {
 const Maps = props => {
   const mapComponents = [];
   if (props.result) {
+    mapComponents.push(
+      <VennMap
+        isochrones={props.result.isochrones}
+        midpt={props.result.midpt}
+      />
+    );
     if (props.result.point1) {
       mapComponents.push(
         <Map

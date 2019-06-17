@@ -27,7 +27,7 @@ const Map = (props) => {
   const id = 'map' + props.keyVal;
   setTimeout(() => {
     initMap(props.point, props.midpt, id);
-  }, 1000);
+  }, 500);
   // split address string from server into its parts (for display)
   const addressParts = props.address.split(', ');
   const address = addressParts[0];
