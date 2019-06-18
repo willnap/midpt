@@ -34,6 +34,16 @@ const onOther = (prevChecked, callback) => {
 };
 
 const Form = props => {
+  let buttonSpace;
+  if (!props.loading) {
+    buttonSpace = (
+      <input type="button" value="Find Midpoint →" onClick={props.onClick}/>
+    );
+  } else {
+    buttonSpace = (
+      <img src="/loading.gif" />
+    );
+  }
   return (<form id="form">
     <div className="locInputs">
       <Input key="a" keyName="a" onChange={props.onChange} placeholder={props.placeholder}/>
@@ -79,7 +89,7 @@ const Form = props => {
             pattern="(1[0-2]|0?[1-9]):[0-5][0-9]"/>
         </label>
       </div>
-      <input type="button" value="Find Midpoint →" onClick={props.onClick}/>
+      {buttonSpace}
     </div>
   </form>);
 };

@@ -7,7 +7,8 @@ function getInitialState() {
     placeholder: 'Enter an address...',
     radioName: 'p30min',
     radioVal: 30*60,
-    showForm: true
+    showForm: true,
+    loading: false
   };
 }
 
@@ -34,6 +35,7 @@ class App extends Component {
       points: [this.state.loca, this.state.locb],
       departureTime: departureTime
     };
+    this.setState({ loading: true });
     fetch('http://localhost:3000/buildroute', {
       method: 'POST',
       headers: {
@@ -46,6 +48,7 @@ class App extends Component {
         return response.json();
       })
       .then(data => {
+        this.setState({ loading: false });
         console.log('data', data);
         this.setState({
           result: {
@@ -81,6 +84,7 @@ class App extends Component {
           radioVal={this.state.radioName}
           onRadioChange={this.onRadioChange}
           placeholder={this.state.placeholder}
+          loading={this.state.loading}
         />
       );
     } else {

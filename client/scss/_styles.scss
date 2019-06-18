@@ -140,6 +140,10 @@ input[type="button"] {
   cursor: pointer;
 }
 
+input[type="button"]:active, label:active {
+  background: lightgray;
+}
+
 input[type=radio] {
   display: none;
 }
@@ -187,6 +191,12 @@ input[type=radio]:checked + label input {
 
 input[type=radio]:checked + label input::placeholder {
   color: rgba(255, 255, 255, .75);
+}
+
+img {
+  height: 30px;
+  width: auto;
+  margin-top: 3px;
 }
 
 /* Hide Google Maps controls (zoom, street view, terrain picker, etc) */

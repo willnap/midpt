@@ -2,7 +2,7 @@ import React, { Component } from 'react';
 
 function initMap(isochrones, midpt) {
   let map = new google.maps.Map(document.getElementById('vennMap'), {
-    zoom: 9,
+    zoom: 10,
     center: midpt,
     mapTypeId: 'roadmap'
   });
