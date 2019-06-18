@@ -6,9 +6,8 @@ function getInitialState() {
   return {
     placeholder: 'Enter an address...',
     radioName: 'p30min',
-    radioVal: 30*60,
-    showForm: true,
-    loading: false
+    radioVal: 30 * 60,
+    showForm: true
   };
 }
 
@@ -28,7 +27,7 @@ class App extends Component {
   onClick(e) {
     console.log(this.state.loca + ' 📍 ' + this.state.locb);
     console.log('Leaving in +' + this.state.radioVal + ' seconds');
-    let departureTime = new Date(Date.now() + (this.state.radioVal * 1000));
+    let departureTime = new Date(Date.now() + this.state.radioVal * 1000);
     departureTime = departureTime.toISOString();
     console.log('(' + departureTime + ')');
     const data = {
