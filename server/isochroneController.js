@@ -5,23 +5,24 @@ const turf = require('@turf/turf');
 const geocode = require('./geocode');
 
 const isochroneController = {};
-
+//this function turns addresses into latitude and longitude coordinates
 isochroneController.getCoords = (req, res, next) => {
-  //retrieve location data from req.body and parse
   res.locals.addresses = [];
   res.locals.points = [];
-  const dateObj = new Date();
+  //gets the time for our navigation queries
+  const dateObj = new Date(req.body.departureTime);
   res.locals.departureTimeISO = dateObj.toISOString(); // for time travel api
-  res.locals.departureTimeUNIX = Math.round(dateObj.valueOf() / 1000);
+  res.locals.departureTimeUNIX = Math.round(dateObj.valueOf() / 1000); //for google api
   // console.log('reqbody', req.body);
   let promArr = [];
   for (let i = 0; i < 2; i++) {
+    //removes whitespace, formats for queries
     let parsedStr = req.body['points'][i].replace(' ', '+');
-    //make a fetch request to API
     promArr.push(geocode(parsedStr));
   }
   Promise.all(promArr)
     .then(ptsAddresses => {
+      //catches each address and formats it into usable data
       ptsAddresses.forEach(ptAddressObj => {
         res.locals.addresses.push(ptAddressObj.formatted_address);
         res.locals.points.push(ptAddressObj.latLng);
@@ -34,14 +35,14 @@ isochroneController.getCoords = (req, res, next) => {
 };
 
 isochroneController.generateRoutes = (req, res, next) => {
-  let time1;
-  let time2;
   const promArr = [];
   for (let i = 0; i < 2; i++) {
     promArr.push(
       new Promise((resolve, reject) => {
+        //this syntax is just to make the code iterable
         const thisPt = res.locals.points[i % res.locals.points.length];
         const otherPt = res.locals.points[(i + 1) % res.locals.points.length];
+        //grabbing initial route info for FAIR TIME ALGORITHM
         request.get(
           `https://maps.googleapis.com/maps/api/directions/json?origin=
           ${thisPt.lat},${thisPt.lng}
@@ -58,7 +59,7 @@ isochroneController.generateRoutes = (req, res, next) => {
       })
     );
   }
-  //do the promise thing
+  //waits for queries and then logs travel times for verification and developer peace of mind
   Promise.all(promArr).then(values => {
     console.log(
       'finding a midpt between ',
@@ -68,6 +69,7 @@ isochroneController.generateRoutes = (req, res, next) => {
     );
     console.log('user1 travel time is ', values[0] / 60);
     console.log('user2 travel time is ', values[1] / 60);
+    //the FAIR TIME ALGORITHM
     (res.locals.fairTime = Math.ceil(
       (1 - values[0] / (values[0] + values[1])) * values[0]
     )),
