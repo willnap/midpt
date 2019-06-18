@@ -51,6 +51,7 @@ isochroneController.generateRoutes = (req, res, next) => {
           &key=` + process.env.GAPI_KEY,
           (err, res, body) => {
             if (err) console.log(err);
+            console.log(JSON.parse(body));
             resolve(
               JSON.parse(body).routes[0].legs[0].duration_in_traffic.value
             );
@@ -87,7 +88,7 @@ isochroneController.generateIsochrones = (req, res, next) => {
     let timeToTry = time;
     while (!curIntersection) {
       // timeToTry = 1500;
-      timeToTry = timeToTry * 1.2;
+      // timeToTry = timeToTry * 1.2;
       console.log(
         'trying isochrone intersection with a fairTime of ',
         timeToTry / 60
@@ -122,7 +123,7 @@ isochroneController.generateIsochrones = (req, res, next) => {
         friendIsochrones[0],
         friendIsochrones[1]
       );
-      timeToTry = timeToTry * 1.2;
+      timeToTry = Math.ceil(timeToTry * 1.2);
     }
     res.locals.isochrones = [];
     for (let i = 0; i < 2; i += 1) {
