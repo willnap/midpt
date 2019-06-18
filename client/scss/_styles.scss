@@ -71,6 +71,11 @@ input[type="button"] {
   max-height: 300px;
 }
 
+#vennMap {
+  height: 40vh;
+  max-height: 450px;
+}
+
 form {
   display: flex;
   flex-flow: row wrap;

@@ -6,7 +6,8 @@ function getInitialState() {
   return {
     placeholder: 'Enter an address...',
     radioName: 'p30min',
-    radioVal: 30*60
+    radioVal: 30*60,
+    showForm: true
   };
 }
 
@@ -54,8 +55,10 @@ class App extends Component {
             aToMidptURL: data.directionURLs[0],
             bToMidptURL: data.directionURLs[1],
             address1: data.addresses[0],
-            address2: data.addresses[1]
-          }
+            address2: data.addresses[1],
+            isochrones: data.isochrones
+          },
+          showForm: false
         });
       });
   }
@@ -69,9 +72,9 @@ class App extends Component {
     this.setState({ shouldUpdateMap: false });
   }
   render() {
-    return (
-      <div className="App">
-        <h1>midpt</h1>
+    let form;
+    if (this.state.showForm) {
+      form = (
         <Form
           onChange={this.onChange}
           onClick={this.onClick}
@@ -79,7 +82,15 @@ class App extends Component {
           onRadioChange={this.onRadioChange}
           placeholder={this.state.placeholder}
         />
-      <Maps result={this.state.result} />
+      );
+    } else {
+      form = '';
+    }
+    return (
+      <div className="App">
+        <h1>midpt</h1>
+        {form}
+        <Maps result={this.state.result} />
       </div>
     );
   }

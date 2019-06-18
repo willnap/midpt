@@ -18,8 +18,10 @@ const Maps = props => {
   if (props.result) {
     mapComponents.push(
       <VennMap
+        key="VM"
         isochrones={props.result.isochrones}
         midpt={props.result.midpt}
+        time="7:00"
       />
     );
     if (props.result.point1) {
