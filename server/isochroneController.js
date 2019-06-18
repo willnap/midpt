@@ -151,7 +151,6 @@ isochroneController.generateIsochronesSHITTYwithGOOGLE = (req, res, next) => {
     // console.log('intersection found!!!!', res.locals.isoIntersectionPoints);
     next();
   }
-
   tryIntersection(res.locals.fairTime);
 };
 
@@ -161,11 +160,10 @@ isochroneController.generateIsochrones = (req, res, next) => {
     let curIntersection = null;
     let timeToTry = time;
     while (!curIntersection) {
-      timeToTry = timeToTry * 1.2;
       // timeToTry = 1500;
       console.log(
-        'trying isochrome intersection with a fairTime of ',
-        timeToTry
+        'trying isochrone intersection with a fairTime of ',
+        timeToTry / 60
       );
       friendIsochrones = [];
       for (let i = 0; i < 2; i++) {
@@ -182,8 +180,8 @@ isochroneController.generateIsochrones = (req, res, next) => {
                 `&travelMode=driving` +
                 `&key=${process.env.BING_KEY}`,
               (err, res, body) => {
-                if (err) console.log(err);
-                console.log(JSON.parse(body));
+                if (err) res.status(404).send(err);
+                // console.log(JSON.parse(body));
                 const arrayOfLatLngPoints = JSON.parse(body).resourceSets[0]
                   .resources[0].polygons[0].coordinates[0];
                 // sometimes it might not be one polygon!!! so would need to have multiple i's for coordinates
@@ -197,7 +195,7 @@ isochroneController.generateIsochrones = (req, res, next) => {
         friendIsochrones[0],
         friendIsochrones[1]
       );
-      // timeToTry = timeToTry * 1.2;
+      timeToTry = timeToTry * 1.2;
     }
     res.locals.isochrones = [];
     for (let i = 0; i < 2; i += 1) {

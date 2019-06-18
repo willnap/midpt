@@ -28,7 +28,7 @@ class App extends Component {
       points: [this.state.loca, this.state.locb],
       departureTime: 'x'
     };
-    fetch('/buildroute', {
+    fetch('http://localhost:3000/buildroute', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
