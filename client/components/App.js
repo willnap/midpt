@@ -3,7 +3,12 @@ import Maps from '../components/Maps';
 import Form from '../components/Form';
 
 function getInitialState() {
-  return { placeholder: 'Enter an address...' };
+  return {
+    placeholder: 'Enter an address...',
+    radioName: 'p30min',
+    radioVal: 30*60,
+    showForm: true
+  };
 }
 
 class App extends Component {
@@ -18,15 +23,16 @@ class App extends Component {
     this.setState({
       [e.target.id]: e.target.value
     });
-    console.log(e.target.id + ' change: ' + this.state[e.target.id]);
   }
   onClick(e) {
-    console.log('CLICK:', e.target.value);
-    console.log('Radio val:', this.state.radioVal);
-    console.log(this.state.loca + ' ' + this.state.locb);
+    console.log(this.state.loca + ' 📍 ' + this.state.locb);
+    console.log('Leaving in +' + this.state.radioVal + ' seconds');
+    let departureTime = new Date(Date.now() + (this.state.radioVal * 1000));
+    departureTime = departureTime.toISOString();
+    console.log('(' + departureTime + ')');
     const data = {
       points: [this.state.loca, this.state.locb],
-      departureTime: 'x'
+      departureTime: departureTime
     };
     fetch('http://localhost:3000/buildroute', {
       method: 'POST',
@@ -40,7 +46,7 @@ class App extends Component {
         return response.json();
       })
       .then(data => {
-        console.log(data);
+        console.log('data', data);
         this.setState({
           result: {
             point1: data.points[0],
@@ -49,24 +55,41 @@ class App extends Component {
             aToMidptURL: data.directionURLs[0],
             bToMidptURL: data.directionURLs[1],
             address1: data.addresses[0],
-            address2: data.addresses[1]
-          }
+            address2: data.addresses[1],
+            isochrones: data.isochrones
+          },
+          showForm: false
         });
       });
   }
   onRadioChange(e) {
-    this.setState({ radioVal: [e.target.value] });
+    this.setState({
+      radioVal: [e.target.value],
+      radioName: [e.target.id]
+    });
+  }
+  hasUpdatedMap() {
+    this.setState({ shouldUpdateMap: false });
   }
   render() {
-    return (
-      <div className="App">
-        <h1>midpt</h1>
+    let form;
+    if (this.state.showForm) {
+      form = (
         <Form
           onChange={this.onChange}
           onClick={this.onClick}
+          radioVal={this.state.radioName}
           onRadioChange={this.onRadioChange}
           placeholder={this.state.placeholder}
         />
+      );
+    } else {
+      form = '';
+    }
+    return (
+      <div className="App">
+        <h1>midpt</h1>
+        {form}
         <Maps result={this.state.result} />
       </div>
     );

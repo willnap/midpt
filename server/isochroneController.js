@@ -93,7 +93,7 @@ isochroneController.generateIsochrones = (req, res, next) => {
         timeToTry / 60
       );
       friendIsochrones = [];
-      for (let i = 0; i < 2; i++) {
+      for (let i = 0; i < 2; i += 1) {
         friendIsochrones.push(
           await new Promise((resolve, reject) => {
             const thisPt = res.locals.points[i % res.locals.points.length];
