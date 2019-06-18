@@ -1,0 +1,2039 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Drawing isochrones</title>
+  </head>
+  <body>
+    <!DOCTYPE html>
+    <html>
+      <meta name="description" content="Class 10 Show+Tell: GeoJson" />
+      <meta charset="utf-8" />
+      <meta name="viewport" content="width=device-width" />
+      <head>
+        <link
+          rel="stylesheet"
+          href="http://cdn.leafletjs.com/leaflet/v1.3.0/leaflet.css"
+        />
+        <link rel="stylesheet" href="css.css" />
+
+        <style>
+          html,
+          body,
+          #mapid {
+            height: 100%;
+            width: 100%;
+            padding: 0;
+            margin: 0;
+          }
+          #error {
+            position: absolute;
+            width: 80%;
+            margin: 0px;
+            z-index: 2000;
+            width: 80%;
+            border-radius: 20px;
+            max-width: 500px;
+            top: 30%; /* position the top  edge of the element at the middle of the parent */
+            left: 50%; /* position the left edge of the element at the middle of the parent */
+            transform: translate(-50%, -50%);
+            background-color: white;
+            padding: 10px;
+            display: none;
+            text-align: center;
+          }
+        </style>
+        <script
+          src="https://unpkg.com/leaflet@1.4.0/dist/leaflet.js"
+          integrity="sha512-QVftwZFqvtRNi0ZyCtsznlKSWOStnDORoefr1enyq5mVL4tmKB3S/EnC3rRJcxCPavG10IcrVGSmPh6Qw5lwrg=="
+          crossorigin=""
+        ></script>
+      </head>
+      <body>
+        <div id="mapid"></div>
+      </body>
+    </html>
+    <div id="error" class="tippy-tooltip honeybee-theme">
+      <p><b>No API and APPLICATION_ID key inserted </b></p>
+      <p>
+        <a href="http://docs.traveltimeplatform.com/overview/getting-keys/"
+          >Sign up for an API key</a
+        >
+      </p>
+      <p>Place it in API and APPLICATION_ID variables</p>
+    </div>
+    <script>
+      // The name of the starting location. We will have to geocode this to coordinates.
+      var startingLocation = 'The White House, DC';
+      // The departure time in an ISO format.
+      var departureTime = new Date().toJSON();
+      // Travel time in seconds. We want 1 hour travel time so it is 60 minutes x 60 seconds.
+      var travelTime = 60 * 60;
+      // These secret variables are needed to authenticate the request. Get them from http://docs.traveltimeplatform.com/overview/getting-keys/ and replace
+      var APPLICATION_ID = 'b964c4d6';
+      var API_KEY = '16b45f2e5a3a3d8424fb455002789d46';
+
+      var mymap = L.map('mapid').setView([38.8, -77.0365], 9);
+
+      sendGeocodingRequest(startingLocation);
+
+      L.tileLayer(
+        'https://api.tiles.mapbox.com/v4/{id}/{z}/{x}/{y}.png?access_token=pk.eyJ1IjoibWFwYm94IiwiYSI6ImNpejY4NXVycTA2emYycXBndHRqcmZ3N3gifQ.rJcFIG214AriISLbB6B5aw',
+        {
+          maxZoom: 18,
+          attribution:
+            'Map data &copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors, ' +
+            '<a href="https://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, ' +
+            'Imagery © <a href="https://www.mapbox.com/">Mapbox</a>',
+          id: 'mapbox.streets'
+        }
+      ).addTo(mymap);
+
+      // Sends the geocoding request.
+      function sendGeocodingRequest(location) {
+        // The request for the geocoder. Reference: http://docs.traveltimeplatform.com/reference/geocoding-search/
+        var request = {
+          query: location
+        };
+        document.getElementById('error').style.display = 'none';
+        var xhr = new XMLHttpRequest();
+        xhr.responseType = 'json';
+        xhr.open(
+          'GET',
+          'https://api.traveltimeapp.com/v4/geocoding/search?query=' + location
+        );
+        xhr.setRequestHeader('X-Application-Id', APPLICATION_ID);
+        xhr.setRequestHeader('X-Api-Key', API_KEY);
+        xhr.onreadystatechange = function() {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            if (xhr.readyState === 4) {
+              sendTimeMapRequest(xhr.response);
+            }
+          } else {
+            if (
+              APPLICATION_ID === 'place your app id here' ||
+              API_KEY === 'place your api key here'
+            ) {
+              document.getElementById('error').style.display = 'block';
+            }
+          }
+        };
+        xhr.send();
+      }
+
+      // Sends the request of the Time Map multipolygon.
+      function sendTimeMapRequest(geocodingResponse) {
+        // The request for Time Map. Reference: http://docs.traveltimeplatform.com/reference/time-map/
+        var coords = geocodingResponse.features[0].geometry.coordinates;
+        var latLng = { lat: coords[1], lng: coords[0] };
+
+        var request = {
+          departure_searches: [
+            {
+              id: 'first_location',
+              coords: latLng,
+              transportation: {
+                type: 'public_transport'
+              },
+
+              departure_time: departureTime,
+              travel_time: travelTime
+            }
+          ],
+
+          arrival_searches: []
+        };
+
+        var xhr = new XMLHttpRequest();
+        xhr.addEventListener('readystatechange', function() {
+          if (this.readyState === 4) {
+            drawTimeMap(mymap, this.response);
+          }
+        });
+        xhr.open('POST', 'https://api.traveltimeapp.com/v4/time-map');
+        xhr.setRequestHeader('X-Application-Id', APPLICATION_ID);
+        xhr.setRequestHeader('X-Api-Key', API_KEY);
+        xhr.setRequestHeader('Content-Type', 'application/json; charset=UTF-8');
+        xhr.responseType = 'json';
+        xhr.send(JSON.stringify(request));
+
+        // A helper function that converts [{lat: <lat>, lng: <lng>}, ...] to a [[<lat>, <lng>], ...] format.
+        function ringCoordsHashToArray(ring) {
+          return ring.map(function(latLng) {
+            return [latLng.lat, latLng.lng];
+          });
+        }
+
+        // Draws the resulting multipolygon from the response on the map.
+        function drawTimeMap(map, response) {
+          // Reference for the response: http://docs.traveltimeplatform.com/reference/time-map/#response-body-json-attributes
+          isochronePoints = [
+            {
+              lat: 34.121198566456194,
+              lng: -118.49372102421331
+            },
+            {
+              lat: 34.117511,
+              lng: -118.483011
+            },
+            {
+              lat: 34.11708369048217,
+              lng: -118.4929672614007
+            },
+            {
+              lat: 34.10677,
+              lng: -118.491078
+            },
+            {
+              lat: 34.10635,
+              lng: -118.483912
+            },
+            {
+              lat: 34.08831,
+              lng: -118.476746
+            },
+            {
+              lat: 34.12676,
+              lng: -118.469581
+            },
+            {
+              lat: 34.13017,
+              lng: -118.462415
+            },
+            {
+              lat: 34.13295,
+              lng: -118.455249
+            },
+            {
+              lat: 34.130635,
+              lng: -118.448083
+            },
+            {
+              lat: 34.13026,
+              lng: -118.440917
+            },
+            {
+              lat: 34.13406,
+              lng: -118.433752
+            },
+            {
+              lat: 34.13198,
+              lng: -118.426586
+            },
+            {
+              lat: 34.126185,
+              lng: -118.41942
+            },
+            {
+              lat: 34.12446,
+              lng: -118.412254
+            },
+            {
+              lat: 34.08263,
+              lng: -118.32692
+            },
+            {
+              lat: 34.076693,
+              lng: -118.33255
+            },
+            {
+              lat: 34.070756,
+              lng: -118.3263
+            },
+            {
+              lat: 34.06482,
+              lng: -118.31439
+            },
+            {
+              lat: 34.058883,
+              lng: -118.316847
+            },
+            {
+              lat: 34.052946,
+              lng: -118.331194
+            },
+            {
+              lat: 34.047009,
+              lng: -118.354195
+            },
+            {
+              lat: 34.041072,
+              lng: -118.37753
+            },
+            {
+              lat: 34.035167,
+              lng: -118.412254
+            },
+            {
+              lat: 34.029128,
+              lng: -118.405089
+            },
+            {
+              lat: 34.02887,
+              lng: -118.397923
+            },
+            {
+              lat: 34.02923,
+              lng: -118.390757
+            },
+            {
+              lat: 34.03319,
+              lng: -118.383591
+            },
+            {
+              lat: 34.035167,
+              lng: -118.376425
+            },
+            {
+              lat: 34.03216,
+              lng: -118.36926
+            },
+            {
+              lat: 34.02518,
+              lng: -118.362094
+            },
+            {
+              lat: 34.02213,
+              lng: -118.354928
+            },
+            {
+              lat: 34.02474,
+              lng: -118.347762
+            },
+            {
+              lat: 34.022235,
+              lng: -118.340597
+            },
+            {
+              lat: 34.02025,
+              lng: -118.333431
+            },
+            {
+              lat: 34.0199,
+              lng: -118.326265
+            },
+            {
+              lat: 34.011387,
+              lng: -118.31166
+            },
+            {
+              lat: 34.00545,
+              lng: -118.31126
+            },
+            {
+              lat: 33.999513,
+              lng: -118.30924
+            },
+            {
+              lat: 33.993576,
+              lng: -118.30924
+            },
+            {
+              lat: 33.987639,
+              lng: -118.307263
+            },
+            {
+              lat: 33.981702,
+              lng: -118.30646
+            },
+            {
+              lat: 33.975766,
+              lng: -118.29937
+            },
+            {
+              lat: 33.969829,
+              lng: -118.29652
+            },
+            {
+              lat: 33.963892,
+              lng: -118.296215
+            },
+            {
+              lat: 33.957955,
+              lng: -118.2998
+            },
+            {
+              lat: 33.952018,
+              lng: -118.291895
+            },
+            {
+              lat: 33.946081,
+              lng: -118.29328
+            },
+            {
+              lat: 33.940144,
+              lng: -118.29137
+            },
+            {
+              lat: 33.934207,
+              lng: -118.29117
+            },
+            {
+              lat: 33.927235,
+              lng: -118.326265
+            },
+            {
+              lat: 33.925285,
+              lng: -118.319099
+            },
+            {
+              lat: 33.92526,
+              lng: -118.311934
+            },
+            {
+              lat: 33.92564,
+              lng: -118.304768
+            },
+            {
+              lat: 33.927235,
+              lng: -118.297602
+            },
+            {
+              lat: 33.89823,
+              lng: -118.290436
+            },
+            {
+              lat: 33.890692,
+              lng: -118.28327
+            },
+            {
+              lat: 33.92731,
+              lng: -118.276105
+            },
+            {
+              lat: 33.92698,
+              lng: -118.268939
+            },
+            {
+              lat: 33.92695,
+              lng: -118.261773
+            },
+            {
+              lat: 33.92494,
+              lng: -118.254607
+            },
+            {
+              lat: 33.92807,
+              lng: -118.247442
+            },
+            {
+              lat: 33.99267,
+              lng: -118.240276
+            },
+            {
+              lat: 33.99263,
+              lng: -118.23311
+            },
+            {
+              lat: 33.991317,
+              lng: -118.225944
+            },
+            {
+              lat: 33.98935,
+              lng: -118.218778
+            },
+            {
+              lat: 33.98889,
+              lng: -118.211613
+            },
+            {
+              lat: 33.99091,
+              lng: -118.204447
+            },
+            {
+              lat: 33.99494,
+              lng: -118.197281
+            },
+            {
+              lat: 33.986864,
+              lng: -118.190115
+            },
+            {
+              lat: 33.98684,
+              lng: -118.18295
+            },
+            {
+              lat: 33.93678777471538,
+              lng: -118.17606961929043
+            },
+            {
+              lat: 33.9896,
+              lng: -118.171255
+            },
+            {
+              lat: 34.00993,
+              lng: -118.164094
+            },
+            {
+              lat: 34.00443,
+              lng: -118.156934
+            },
+            {
+              lat: 33.994668,
+              lng: -118.149773
+            },
+            {
+              lat: 33.99565,
+              lng: -118.142612
+            },
+            {
+              lat: 34.032335,
+              lng: -118.135451
+            },
+            {
+              lat: 34.03273,
+              lng: -118.12829
+            },
+            {
+              lat: 34.0334,
+              lng: -118.12829
+            },
+            {
+              lat: 34.03331,
+              lng: -118.135451
+            },
+            {
+              lat: 34.03366,
+              lng: -118.142612
+            },
+            {
+              lat: 34.03727,
+              lng: -118.149773
+            },
+            {
+              lat: 34.06497,
+              lng: -118.156934
+            },
+            {
+              lat: 34.0658,
+              lng: -118.164094
+            },
+            {
+              lat: 34.0618,
+              lng: -118.171255
+            },
+            {
+              lat: 34.059883,
+              lng: -118.178416
+            },
+            {
+              lat: 34.059484,
+              lng: -118.185577
+            },
+            {
+              lat: 34.10341,
+              lng: -118.192738
+            },
+            {
+              lat: 34.10318,
+              lng: -118.199899
+            },
+            {
+              lat: 34.09771,
+              lng: -118.207059
+            },
+            {
+              lat: 34.091013,
+              lng: -118.21422
+            },
+            {
+              lat: 34.08901,
+              lng: -118.221381
+            },
+            {
+              lat: 34.09113,
+              lng: -118.228542
+            },
+            {
+              lat: 34.091383,
+              lng: -118.235703
+            },
+            {
+              lat: 34.0986,
+              lng: -118.242863
+            },
+            {
+              lat: 34.098303,
+              lng: -118.250024
+            },
+            {
+              lat: 34.08765,
+              lng: -118.257185
+            },
+            {
+              lat: 34.084404,
+              lng: -118.264346
+            },
+            {
+              lat: 34.08756,
+              lng: -118.271507
+            },
+            {
+              lat: 34.0874,
+              lng: -118.278668
+            },
+            {
+              lat: 34.087846,
+              lng: -118.285828
+            },
+            {
+              lat: 34.08536,
+              lng: -118.292989
+            },
+            {
+              lat: 34.08751,
+              lng: -118.30015
+            },
+            {
+              lat: 34.09376,
+              lng: -118.307311
+            },
+            {
+              lat: 34.117511,
+              lng: -118.33727
+            },
+            {
+              lat: 34.12345,
+              lng: -118.33888
+            },
+            {
+              lat: 34.129389,
+              lng: -118.34469
+            },
+            {
+              lat: 34.135328,
+              lng: -118.35085
+            },
+            {
+              lat: 34.141267,
+              lng: -118.35975
+            },
+            {
+              lat: 34.147206,
+              lng: -118.34281
+            },
+            {
+              lat: 34.153791,
+              lng: -118.307311
+            },
+            {
+              lat: 34.15528,
+              lng: -118.314472
+            },
+            {
+              lat: 34.15532,
+              lng: -118.321632
+            },
+            {
+              lat: 34.15397,
+              lng: -118.328793
+            },
+            {
+              lat: 34.153791,
+              lng: -118.335954
+            },
+            {
+              lat: 34.15768,
+              lng: -118.343115
+            },
+            {
+              lat: 34.158,
+              lng: -118.350276
+            },
+            {
+              lat: 34.16339,
+              lng: -118.357436
+            },
+            {
+              lat: 34.16476,
+              lng: -118.364597
+            },
+            {
+              lat: 34.163285,
+              lng: -118.371758
+            },
+            {
+              lat: 34.16625,
+              lng: -118.378919
+            },
+            {
+              lat: 34.17277,
+              lng: -118.38608
+            },
+            {
+              lat: 34.17478,
+              lng: -118.393241
+            },
+            {
+              lat: 34.174869,
+              lng: -118.400401
+            },
+            {
+              lat: 34.17971,
+              lng: -118.407562
+            },
+            {
+              lat: 34.185026,
+              lng: -118.414723
+            },
+            {
+              lat: 34.194719,
+              lng: -118.43901
+            },
+            {
+              lat: 34.200658,
+              lng: -118.43885
+            },
+            {
+              lat: 34.206597,
+              lng: -118.44406
+            },
+            {
+              lat: 34.212536,
+              lng: -118.448783
+            },
+            {
+              lat: 34.218475,
+              lng: -118.44752
+            },
+            {
+              lat: 34.224414,
+              lng: -118.446704
+            },
+            {
+              lat: 34.230353,
+              lng: -118.45138
+            },
+            {
+              lat: 34.236292,
+              lng: -118.448555
+            },
+            {
+              lat: 34.242231,
+              lng: -118.45323
+            },
+            {
+              lat: 34.24817,
+              lng: -118.42851
+            },
+            {
+              lat: 34.254109,
+              lng: -118.429495
+            },
+            {
+              lat: 34.260048,
+              lng: -118.43563
+            },
+            {
+              lat: 34.26691,
+              lng: -118.414723
+            },
+            {
+              lat: 34.27655,
+              lng: -118.421884
+            },
+            {
+              lat: 34.27446,
+              lng: -118.429045
+            },
+            {
+              lat: 34.26987,
+              lng: -118.436205
+            },
+            {
+              lat: 34.27011,
+              lng: -118.443366
+            },
+            {
+              lat: 34.26691,
+              lng: -118.450527
+            },
+            {
+              lat: 34.2736,
+              lng: -118.457688
+            },
+            {
+              lat: 34.29263,
+              lng: -118.464849
+            },
+            {
+              lat: 34.2979,
+              lng: -118.472009
+            },
+            {
+              lat: 34.302955827509265,
+              lng: -118.47602283379089
+            },
+            {
+              lat: 34.302297,
+              lng: -118.47912
+            },
+            {
+              lat: 34.29636,
+              lng: -118.4742
+            },
+            {
+              lat: 34.290423,
+              lng: -118.46914
+            },
+            {
+              lat: 34.284486,
+              lng: -118.4637
+            },
+            {
+              lat: 34.27763,
+              lng: -118.491078
+            },
+            {
+              lat: 34.2761,
+              lng: -118.491078
+            },
+            {
+              lat: 34.27763,
+              lng: -118.498244
+            },
+            {
+              lat: 34.18693,
+              lng: -118.505409
+            },
+            {
+              lat: 34.181146,
+              lng: -118.512575
+            },
+            {
+              lat: 34.18652,
+              lng: -118.519741
+            },
+            {
+              lat: 34.18048,
+              lng: -118.526907
+            },
+            {
+              lat: 34.18145,
+              lng: -118.534072
+            },
+            {
+              lat: 34.17595,
+              lng: -118.541238
+            },
+            {
+              lat: 34.17928,
+              lng: -118.548404
+            },
+            {
+              lat: 34.181235,
+              lng: -118.55557
+            },
+            {
+              lat: 34.174045,
+              lng: -118.562736
+            },
+            {
+              lat: 34.1756,
+              lng: -118.569901
+            },
+            {
+              lat: 34.17198,
+              lng: -118.577067
+            },
+            {
+              lat: 34.16877,
+              lng: -118.577067
+            },
+            {
+              lat: 34.17103,
+              lng: -118.569901
+            },
+            {
+              lat: 34.172872,
+              lng: -118.562736
+            },
+            {
+              lat: 34.17053,
+              lng: -118.55557
+            },
+            {
+              lat: 34.1723,
+              lng: -118.548404
+            },
+            {
+              lat: 34.17129,
+              lng: -118.541238
+            },
+            {
+              lat: 34.16948,
+              lng: -118.534072
+            },
+            {
+              lat: 34.16507,
+              lng: -118.526907
+            },
+            {
+              lat: 34.15858,
+              lng: -118.519741
+            },
+            {
+              lat: 34.15663,
+              lng: -118.512575
+            },
+            {
+              lat: 34.15204,
+              lng: -118.505409
+            },
+            {
+              lat: 34.14589,
+              lng: -118.498244
+            },
+            {
+              lat: 34.121198566456194,
+              lng: -118.49372102421331
+            }
+          ];
+          var shapesCoords = response.results[0].shapes.map(function(polygon) {
+            var shell = ringCoordsHashToArray(isochronePoints);
+            var holes = [];
+            return [shell].concat(holes);
+          });
+          var polygon = L.polygon(shapesCoords, { color: 'red' });
+          polygon.addTo(map);
+
+          isochronePoints2 = [
+            {
+              lat: 34.17198,
+              lng: -118.577067
+            },
+            {
+              lat: 34.1756,
+              lng: -118.569901
+            },
+            {
+              lat: 34.174045,
+              lng: -118.562736
+            },
+            {
+              lat: 34.181235,
+              lng: -118.55557
+            },
+            {
+              lat: 34.17928,
+              lng: -118.548404
+            },
+            {
+              lat: 34.17595,
+              lng: -118.541238
+            },
+            {
+              lat: 34.18145,
+              lng: -118.534072
+            },
+            {
+              lat: 34.18048,
+              lng: -118.526907
+            },
+            {
+              lat: 34.18652,
+              lng: -118.519741
+            },
+            {
+              lat: 34.181146,
+              lng: -118.512575
+            },
+            {
+              lat: 34.18693,
+              lng: -118.505409
+            },
+            {
+              lat: 34.27763,
+              lng: -118.498244
+            },
+            {
+              lat: 34.2761,
+              lng: -118.491078
+            },
+            {
+              lat: 34.27763,
+              lng: -118.491078
+            },
+            {
+              lat: 34.284486,
+              lng: -118.4637
+            },
+            {
+              lat: 34.290423,
+              lng: -118.46914
+            },
+            {
+              lat: 34.29636,
+              lng: -118.4742
+            },
+            {
+              lat: 34.302297,
+              lng: -118.47912
+            },
+            {
+              lat: 34.308234,
+              lng: -118.45121
+            },
+            {
+              lat: 34.314171,
+              lng: -118.44986
+            },
+            {
+              lat: 34.320108,
+              lng: -118.48278
+            },
+            {
+              lat: 34.323172,
+              lng: -118.483912
+            },
+            {
+              lat: 34.32404,
+              lng: -118.476746
+            },
+            {
+              lat: 34.32412,
+              lng: -118.469581
+            },
+            {
+              lat: 34.325,
+              lng: -118.462415
+            },
+            {
+              lat: 34.32511,
+              lng: -118.455249
+            },
+            {
+              lat: 34.32451,
+              lng: -118.448083
+            },
+            {
+              lat: 34.32473,
+              lng: -118.440917
+            },
+            {
+              lat: 34.325314,
+              lng: -118.433752
+            },
+            {
+              lat: 34.3267,
+              lng: -118.426586
+            },
+            {
+              lat: 34.32257,
+              lng: -118.41942
+            },
+            {
+              lat: 34.338048,
+              lng: -118.412254
+            },
+            {
+              lat: 34.341095,
+              lng: -118.405089
+            },
+            {
+              lat: 34.33449,
+              lng: -118.397923
+            },
+            {
+              lat: 34.328028,
+              lng: -118.390757
+            },
+            {
+              lat: 34.31408,
+              lng: -118.383591
+            },
+            {
+              lat: 34.30513,
+              lng: -118.376425
+            },
+            {
+              lat: 34.31131,
+              lng: -118.36926
+            },
+            {
+              lat: 34.315381,
+              lng: -118.362094
+            },
+            {
+              lat: 34.315844,
+              lng: -118.354928
+            },
+            {
+              lat: 34.31335,
+              lng: -118.347762
+            },
+            {
+              lat: 34.32927,
+              lng: -118.340597
+            },
+            {
+              lat: 34.319641,
+              lng: -118.333431
+            },
+            {
+              lat: 34.295031,
+              lng: -118.326265
+            },
+            {
+              lat: 34.290175,
+              lng: -118.319099
+            },
+            {
+              lat: 34.28751,
+              lng: -118.311934
+            },
+            {
+              lat: 34.27718,
+              lng: -118.304768
+            },
+            {
+              lat: 34.282188,
+              lng: -118.297602
+            },
+            {
+              lat: 34.29197,
+              lng: -118.290436
+            },
+            {
+              lat: 34.29788,
+              lng: -118.28327
+            },
+            {
+              lat: 34.29976,
+              lng: -118.276105
+            },
+            {
+              lat: 34.30252,
+              lng: -118.268939
+            },
+            {
+              lat: 34.30534,
+              lng: -118.261773
+            },
+            {
+              lat: 34.3047,
+              lng: -118.254607
+            },
+            {
+              lat: 34.30066,
+              lng: -118.247442
+            },
+            {
+              lat: 34.297861,
+              lng: -118.240276
+            },
+            {
+              lat: 34.297333,
+              lng: -118.23311
+            },
+            {
+              lat: 34.27718,
+              lng: -118.225944
+            },
+            {
+              lat: 34.226815,
+              lng: -118.225944
+            },
+            {
+              lat: 34.22148,
+              lng: -118.218778
+            },
+            {
+              lat: 34.22115,
+              lng: -118.211613
+            },
+            {
+              lat: 34.26302,
+              lng: -118.204447
+            },
+            {
+              lat: 34.266842,
+              lng: -118.197281
+            },
+            {
+              lat: 34.264962,
+              lng: -118.190115
+            },
+            {
+              lat: 34.290287,
+              lng: -118.18295
+            },
+            {
+              lat: 34.28956,
+              lng: -118.175784
+            },
+            {
+              lat: 34.28096,
+              lng: -118.168618
+            },
+            {
+              lat: 34.277945,
+              lng: -118.161452
+            },
+            {
+              lat: 34.280545,
+              lng: -118.154287
+            },
+            {
+              lat: 34.27754,
+              lng: -118.147121
+            },
+            {
+              lat: 34.27575,
+              lng: -118.139955
+            },
+            {
+              lat: 34.270789,
+              lng: -118.132789
+            },
+            {
+              lat: 34.26568,
+              lng: -118.125623
+            },
+            {
+              lat: 34.20036,
+              lng: -118.118458
+            },
+            {
+              lat: 34.196065,
+              lng: -118.111292
+            },
+            {
+              lat: 34.19258,
+              lng: -118.104126
+            },
+            {
+              lat: 34.18385,
+              lng: -118.09696
+            },
+            {
+              lat: 34.18242,
+              lng: -118.089795
+            },
+            {
+              lat: 34.18276,
+              lng: -118.082629
+            },
+            {
+              lat: 34.18034,
+              lng: -118.075463
+            },
+            {
+              lat: 34.1732,
+              lng: -118.068297
+            },
+            {
+              lat: 34.169847,
+              lng: -118.061132
+            },
+            {
+              lat: 34.17081,
+              lng: -118.053966
+            },
+            {
+              lat: 34.169734,
+              lng: -118.0468
+            },
+            {
+              lat: 34.16721,
+              lng: -118.039634
+            },
+            {
+              lat: 34.167806,
+              lng: -118.032468
+            },
+            {
+              lat: 34.163376,
+              lng: -118.025303
+            },
+            {
+              lat: 34.155183,
+              lng: -118.018137
+            },
+            {
+              lat: 34.15157,
+              lng: -118.010971
+            },
+            {
+              lat: 34.15166,
+              lng: -118.003805
+            },
+            {
+              lat: 34.15175,
+              lng: -117.99664
+            },
+            {
+              lat: 34.15182,
+              lng: -117.989474
+            },
+            {
+              lat: 34.13998,
+              lng: -117.982308
+            },
+            {
+              lat: 34.140045,
+              lng: -117.975142
+            },
+            {
+              lat: 34.14007,
+              lng: -117.967976
+            },
+            {
+              lat: 34.140115,
+              lng: -117.960811
+            },
+            {
+              lat: 34.14014,
+              lng: -117.953645
+            },
+            {
+              lat: 34.192796,
+              lng: -117.946479
+            },
+            {
+              lat: 34.204579,
+              lng: -117.939313
+            },
+            {
+              lat: 34.213438,
+              lng: -117.932148
+            },
+            {
+              lat: 34.20998,
+              lng: -117.924982
+            },
+            {
+              lat: 34.21434,
+              lng: -117.917816
+            },
+            {
+              lat: 34.221225,
+              lng: -117.91065
+            },
+            {
+              lat: 34.213055,
+              lng: -117.903485
+            },
+            {
+              lat: 34.204731,
+              lng: -117.896319
+            },
+            {
+              lat: 34.18928,
+              lng: -117.889153
+            },
+            {
+              lat: 34.197654,
+              lng: -117.881987
+            },
+            {
+              lat: 34.199867,
+              lng: -117.874821
+            },
+            {
+              lat: 34.201684,
+              lng: -117.867656
+            },
+            {
+              lat: 34.198775,
+              lng: -117.86049
+            },
+            {
+              lat: 34.198712,
+              lng: -117.853324
+            },
+            {
+              lat: 34.201081,
+              lng: -117.846158
+            },
+            {
+              lat: 34.1845,
+              lng: -117.838993
+            },
+            {
+              lat: 34.15054,
+              lng: -117.831827
+            },
+            {
+              lat: 34.14668,
+              lng: -117.824661
+            },
+            {
+              lat: 34.146087,
+              lng: -117.817495
+            },
+            {
+              lat: 34.13173,
+              lng: -117.810329
+            },
+            {
+              lat: 34.1282,
+              lng: -117.803164
+            },
+            {
+              lat: 34.1361,
+              lng: -117.795998
+            },
+            {
+              lat: 34.13452,
+              lng: -117.788832
+            },
+            {
+              lat: 34.138111,
+              lng: -117.781666
+            },
+            {
+              lat: 34.13985,
+              lng: -117.774501
+            },
+            {
+              lat: 34.12796,
+              lng: -117.767335
+            },
+            {
+              lat: 34.13308,
+              lng: -117.760169
+            },
+            {
+              lat: 34.12748,
+              lng: -117.753003
+            },
+            {
+              lat: 34.125859,
+              lng: -117.745838
+            },
+            {
+              lat: 34.124793,
+              lng: -117.738672
+            },
+            {
+              lat: 34.125314,
+              lng: -117.731506
+            },
+            {
+              lat: 34.12192,
+              lng: -117.72434
+            },
+            {
+              lat: 34.12027,
+              lng: -117.717174
+            },
+            {
+              lat: 34.120937,
+              lng: -117.710009
+            },
+            {
+              lat: 34.12037,
+              lng: -117.702843
+            },
+            {
+              lat: 34.11949,
+              lng: -117.702843
+            },
+            {
+              lat: 34.11949,
+              lng: -117.710009
+            },
+            {
+              lat: 34.11962,
+              lng: -117.717174
+            },
+            {
+              lat: 34.11968,
+              lng: -117.72434
+            },
+            {
+              lat: 34.11289,
+              lng: -117.731506
+            },
+            {
+              lat: 34.10804,
+              lng: -117.738672
+            },
+            {
+              lat: 34.117508,
+              lng: -117.745838
+            },
+            {
+              lat: 34.07178,
+              lng: -117.753003
+            },
+            {
+              lat: 34.07031,
+              lng: -117.760169
+            },
+            {
+              lat: 34.04279,
+              lng: -117.767335
+            },
+            {
+              lat: 34.04302,
+              lng: -117.774501
+            },
+            {
+              lat: 34.05014,
+              lng: -117.781666
+            },
+            {
+              lat: 34.05125,
+              lng: -117.788832
+            },
+            {
+              lat: 34.05779,
+              lng: -117.795998
+            },
+            {
+              lat: 34.03598,
+              lng: -117.803164
+            },
+            {
+              lat: 34.02354,
+              lng: -117.810329
+            },
+            {
+              lat: 34.06347,
+              lng: -117.817495
+            },
+            {
+              lat: 34.06346,
+              lng: -117.824661
+            },
+            {
+              lat: 34.0642,
+              lng: -117.831827
+            },
+            {
+              lat: 34.06703,
+              lng: -117.838993
+            },
+            {
+              lat: 34.06787,
+              lng: -117.846158
+            },
+            {
+              lat: 34.067695,
+              lng: -117.853324
+            },
+            {
+              lat: 34.06516,
+              lng: -117.86049
+            },
+            {
+              lat: 34.05998,
+              lng: -117.867656
+            },
+            {
+              lat: 34.06511,
+              lng: -117.874821
+            },
+            {
+              lat: 34.06138,
+              lng: -117.881987
+            },
+            {
+              lat: 34.05551,
+              lng: -117.889153
+            },
+            {
+              lat: 34.057286,
+              lng: -117.896319
+            },
+            {
+              lat: 34.05567,
+              lng: -117.903485
+            },
+            {
+              lat: 34.04878,
+              lng: -117.91065
+            },
+            {
+              lat: 34.05593,
+              lng: -117.917816
+            },
+            {
+              lat: 34.05042,
+              lng: -117.924982
+            },
+            {
+              lat: 33.996353,
+              lng: -117.932148
+            },
+            {
+              lat: 33.99793,
+              lng: -117.939313
+            },
+            {
+              lat: 33.99993,
+              lng: -117.946479
+            },
+            {
+              lat: 34.002411,
+              lng: -117.953645
+            },
+            {
+              lat: 34.00448,
+              lng: -117.960811
+            },
+            {
+              lat: 34.0017,
+              lng: -117.967976
+            },
+            {
+              lat: 34.00742,
+              lng: -117.975142
+            },
+            {
+              lat: 34.006685,
+              lng: -117.982308
+            },
+            {
+              lat: 34.004099,
+              lng: -117.989474
+            },
+            {
+              lat: 34.00406,
+              lng: -117.99664
+            },
+            {
+              lat: 34.027635,
+              lng: -118.003805
+            },
+            {
+              lat: 34.027545,
+              lng: -118.010971
+            },
+            {
+              lat: 34.02734,
+              lng: -118.018137
+            },
+            {
+              lat: 34.027415,
+              lng: -118.025303
+            },
+            {
+              lat: 34.00923,
+              lng: -118.032468
+            },
+            {
+              lat: 34.00358,
+              lng: -118.039634
+            },
+            {
+              lat: 33.98863,
+              lng: -118.0468
+            },
+            {
+              lat: 33.990695,
+              lng: -118.053966
+            },
+            {
+              lat: 33.98778,
+              lng: -118.061132
+            },
+            {
+              lat: 33.98609,
+              lng: -118.068297
+            },
+            {
+              lat: 33.97654,
+              lng: -118.075463
+            },
+            {
+              lat: 33.96086,
+              lng: -118.082629
+            },
+            {
+              lat: 33.94953,
+              lng: -118.089795
+            },
+            {
+              lat: 34.029945,
+              lng: -118.09696
+            },
+            {
+              lat: 34.02978,
+              lng: -118.104126
+            },
+            {
+              lat: 33.95548,
+              lng: -118.111292
+            },
+            {
+              lat: 33.95989,
+              lng: -118.118458
+            },
+            {
+              lat: 33.959997,
+              lng: -118.125623
+            },
+            {
+              lat: 33.97313,
+              lng: -118.132789
+            },
+            {
+              lat: 33.98201,
+              lng: -118.139955
+            },
+            {
+              lat: 33.98336,
+              lng: -118.147121
+            },
+            {
+              lat: 33.99063,
+              lng: -118.154287
+            },
+            {
+              lat: 33.96546,
+              lng: -118.161452
+            },
+            {
+              lat: 33.93868,
+              lng: -118.168618
+            },
+            {
+              lat: 33.93471,
+              lng: -118.175784
+            },
+            {
+              lat: 33.98684,
+              lng: -118.18295
+            },
+            {
+              lat: 33.986864,
+              lng: -118.190115
+            },
+            {
+              lat: 33.99494,
+              lng: -118.197281
+            },
+            {
+              lat: 33.99091,
+              lng: -118.204447
+            },
+            {
+              lat: 33.98889,
+              lng: -118.211613
+            },
+            {
+              lat: 33.98935,
+              lng: -118.218778
+            },
+            {
+              lat: 33.991317,
+              lng: -118.225944
+            },
+            {
+              lat: 33.99263,
+              lng: -118.23311
+            },
+            {
+              lat: 33.99267,
+              lng: -118.240276
+            },
+            {
+              lat: 33.92807,
+              lng: -118.247442
+            },
+            {
+              lat: 33.92494,
+              lng: -118.254607
+            },
+            {
+              lat: 33.92695,
+              lng: -118.261773
+            },
+            {
+              lat: 33.92698,
+              lng: -118.268939
+            },
+            {
+              lat: 33.92731,
+              lng: -118.276105
+            },
+            {
+              lat: 33.890692,
+              lng: -118.28327
+            },
+            {
+              lat: 33.89823,
+              lng: -118.290436
+            },
+            {
+              lat: 33.927235,
+              lng: -118.297602
+            },
+            {
+              lat: 33.92564,
+              lng: -118.304768
+            },
+            {
+              lat: 33.92526,
+              lng: -118.311934
+            },
+            {
+              lat: 33.925285,
+              lng: -118.319099
+            },
+            {
+              lat: 33.927235,
+              lng: -118.326265
+            },
+            {
+              lat: 33.934207,
+              lng: -118.29117
+            },
+            {
+              lat: 33.940144,
+              lng: -118.29137
+            },
+            {
+              lat: 33.946081,
+              lng: -118.29328
+            },
+            {
+              lat: 33.952018,
+              lng: -118.291895
+            },
+            {
+              lat: 33.957955,
+              lng: -118.2998
+            },
+            {
+              lat: 33.963892,
+              lng: -118.296215
+            },
+            {
+              lat: 33.969829,
+              lng: -118.29652
+            },
+            {
+              lat: 33.975766,
+              lng: -118.29937
+            },
+            {
+              lat: 33.981702,
+              lng: -118.30646
+            },
+            {
+              lat: 33.987639,
+              lng: -118.307263
+            },
+            {
+              lat: 33.993576,
+              lng: -118.30924
+            },
+            {
+              lat: 33.999513,
+              lng: -118.30924
+            },
+            {
+              lat: 34.00545,
+              lng: -118.31126
+            },
+            {
+              lat: 34.011387,
+              lng: -118.31166
+            },
+            {
+              lat: 34.0199,
+              lng: -118.326265
+            },
+            {
+              lat: 34.02025,
+              lng: -118.333431
+            },
+            {
+              lat: 34.022235,
+              lng: -118.340597
+            },
+            {
+              lat: 34.02474,
+              lng: -118.347762
+            },
+            {
+              lat: 34.02213,
+              lng: -118.354928
+            },
+            {
+              lat: 34.02518,
+              lng: -118.362094
+            },
+            {
+              lat: 34.03216,
+              lng: -118.36926
+            },
+            {
+              lat: 34.035167,
+              lng: -118.376425
+            },
+            {
+              lat: 34.03319,
+              lng: -118.383591
+            },
+            {
+              lat: 34.02923,
+              lng: -118.390757
+            },
+            {
+              lat: 34.02887,
+              lng: -118.397923
+            },
+            {
+              lat: 34.029128,
+              lng: -118.405089
+            },
+            {
+              lat: 34.035167,
+              lng: -118.412254
+            },
+            {
+              lat: 34.041072,
+              lng: -118.37753
+            },
+            {
+              lat: 34.047009,
+              lng: -118.354195
+            },
+            {
+              lat: 34.052946,
+              lng: -118.331194
+            },
+            {
+              lat: 34.058883,
+              lng: -118.316847
+            },
+            {
+              lat: 34.06482,
+              lng: -118.31439
+            },
+            {
+              lat: 34.070756,
+              lng: -118.3263
+            },
+            {
+              lat: 34.076693,
+              lng: -118.33255
+            },
+            {
+              lat: 34.08263,
+              lng: -118.32692
+            },
+            {
+              lat: 34.12446,
+              lng: -118.412254
+            },
+            {
+              lat: 34.126185,
+              lng: -118.41942
+            },
+            {
+              lat: 34.13198,
+              lng: -118.426586
+            },
+            {
+              lat: 34.13406,
+              lng: -118.433752
+            },
+            {
+              lat: 34.13026,
+              lng: -118.440917
+            },
+            {
+              lat: 34.130635,
+              lng: -118.448083
+            },
+            {
+              lat: 34.13295,
+              lng: -118.455249
+            },
+            {
+              lat: 34.13017,
+              lng: -118.462415
+            },
+            {
+              lat: 34.12676,
+              lng: -118.469581
+            },
+            {
+              lat: 34.08831,
+              lng: -118.476746
+            },
+            {
+              lat: 34.10635,
+              lng: -118.483912
+            },
+            {
+              lat: 34.10677,
+              lng: -118.491078
+            },
+            {
+              lat: 34.14589,
+              lng: -118.498244
+            },
+            {
+              lat: 34.15204,
+              lng: -118.505409
+            },
+            {
+              lat: 34.15663,
+              lng: -118.512575
+            },
+            {
+              lat: 34.15858,
+              lng: -118.519741
+            },
+            {
+              lat: 34.16507,
+              lng: -118.526907
+            },
+            {
+              lat: 34.16948,
+              lng: -118.534072
+            },
+            {
+              lat: 34.17129,
+              lng: -118.541238
+            },
+            {
+              lat: 34.1723,
+              lng: -118.548404
+            },
+            {
+              lat: 34.17053,
+              lng: -118.55557
+            },
+            {
+              lat: 34.172872,
+              lng: -118.562736
+            },
+            {
+              lat: 34.17103,
+              lng: -118.569901
+            },
+            {
+              lat: 34.16877,
+              lng: -118.577067
+            },
+            {
+              lat: 34.17198,
+              lng: -118.577067
+            }
+          ];
+          var shapesCoords2 = response.results[0].shapes.map(function(polygon) {
+            var shell = ringCoordsHashToArray(isochronePoints2);
+            var holes = [];
+            return [shell].concat(holes);
+          });
+          var polygon2 = L.polygon(shapesCoords2, { color: 'blue' });
+          polygon2.addTo(map);
+
+          L.marker({ lat: 34.0206218, lng: -118.4735095 }).addTo(map);
+          // L.marker({ lat: 40.743731, lng: -74.006026 }).addTo(map);
+          // L.marker({ lat: 40.7375466, lng: -74.0025111 }).addTo(map);
+
+          map.fitBounds(polygon.getBounds());
+        }
+      }
+    </script>
+  </body>
+</html>
